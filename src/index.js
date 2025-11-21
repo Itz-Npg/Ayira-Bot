@@ -401,7 +401,7 @@ client.on('messageCreate', async (message) => {
 
         log.command(`${message.author.tag} in ${message.guild.name} → ${usedPrefix}${commandName} ${args.join(' ')}`);
 
-        await new CommandLog({
+        const commandLogData = {
             userId: message.author.id,
             username: message.author.tag,
             guildId: message.guild.id,
@@ -410,7 +410,13 @@ client.on('messageCreate', async (message) => {
             channelName: message.channel.name,
             command: commandName,
             args: args
-        }).save();
+        };
+
+        await new CommandLog(commandLogData).save();
+
+        // Send webhook log
+        const webhookLogger = require('./utils/webhookLogger');
+        webhookLogger.logCommand(commandLogData).catch(() => {});
 
         await command.execute(message, args, client);
         log.success(`Command executed: ${commandName}`);
