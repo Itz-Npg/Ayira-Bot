@@ -34,7 +34,18 @@ const client = new Client({
         GatewayIntentBits.GuildVoiceStates,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-    ]
+    ],
+    rest: {
+        retries: 5,
+        timeout: 60000,
+        rejectOnRateLimit: () => false,
+    },
+    sweepers: {
+        messages: {
+            interval: 3600,
+            lifetime: 1800,
+        },
+    },
 });
 
 client.commands = new Collection();
@@ -154,6 +165,16 @@ client.once('ready', async () => {
     console.log('  │        Ready to play high-quality music!             │');
     console.log('  └───────────────────────────────────────────────────────┘');
     console.log(colors.reset + '\n');
+
+    const webhookLogger = require('./utils/webhookLogger');
+    webhookLogger.logBotStart({
+        botTag: client.user.tag,
+        botId: client.user.id,
+        servers: client.guilds.cache.size,
+        users: client.users.cache.size,
+        commands: client.commands.size,
+        prefix: client.prefix
+    }).catch(() => {});
 
     setTimeout(async () => {
         try {
@@ -473,6 +494,40 @@ client.on('error', (error) => {
         error: error,
         context: 'Discord Client Error'
     }).catch(() => {});
+});
+
+client.rest.on('rateLimited', (rateLimitInfo) => {
+    log.warn(`Rate limit hit: ${rateLimitInfo.method} ${rateLimitInfo.route} - Timeout: ${rateLimitInfo.timeout}ms`);
+});
+
+client.on('warn', (warning) => {
+    log.warn(`Discord Warning: ${warning}`);
+});
+
+process.on('SIGINT', () => {
+    log.warn('Bot shutting down (SIGINT)...');
+    const webhookLogger = require('./utils/webhookLogger');
+    webhookLogger.logBotShutdown({
+        botTag: client.user?.tag || 'Unknown',
+        reason: 'Manual shutdown (SIGINT)'
+    }).then(() => {
+        process.exit(0);
+    }).catch(() => {
+        process.exit(0);
+    });
+});
+
+process.on('SIGTERM', () => {
+    log.warn('Bot shutting down (SIGTERM)...');
+    const webhookLogger = require('./utils/webhookLogger');
+    webhookLogger.logBotShutdown({
+        botTag: client.user?.tag || 'Unknown',
+        reason: 'Shutdown (SIGTERM)'
+    }).then(() => {
+        process.exit(0);
+    }).catch(() => {
+        process.exit(0);
+    });
 });
 
 client.login(process.env.DISCORD_TOKEN).catch(err => {
