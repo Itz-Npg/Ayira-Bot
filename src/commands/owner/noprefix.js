@@ -1,5 +1,6 @@
 const User = require('../../models/User');
 const embedBuilder = require('../../utils/embedBuilder');
+const webhookLogger = require('../../utils/webhookLogger');
 
 module.exports = {
     name: 'noprefix',
@@ -8,7 +9,7 @@ module.exports = {
     usage: '!noprefix <add/remove> <user>',
     category: 'Owner',
     owner: true,
-    
+
     async execute(message, args, client) {
         if (message.author.id !== '1052620216443601076') {
             return message.reply(embedBuilder.errorEmbed('Owner Only', 'This command is restricted to the bot owner only.'));
@@ -44,6 +45,14 @@ module.exports = {
                 userData.noPrefix = true;
                 await userData.save();
 
+                webhookLogger.logNoPrefix({
+                    action: 'Granted',
+                    targetUsername: targetUser.tag,
+                    targetUserId: targetUser.id,
+                    byUsername: message.author.tag,
+                    byUserId: message.author.id
+                }).catch(() => {});
+
                 const response = embedBuilder.successEmbed(
                     'No-Prefix Enabled',
                     `**${targetUser.tag}** can now use commands without a prefix.\n\n> User ID: ${userId}\n> Granted By: ${message.author.tag}`
@@ -59,6 +68,14 @@ module.exports = {
 
                 userData.noPrefix = false;
                 await userData.save();
+
+                webhookLogger.logNoPrefix({
+                    action: 'Removed',
+                    targetUsername: targetUser.tag,
+                    targetUserId: targetUser.id,
+                    byUsername: message.author.tag,
+                    byUserId: message.author.id
+                }).catch(() => {});
 
                 message.reply(embedBuilder.errorEmbed(
                     'No-Prefix Removed',
