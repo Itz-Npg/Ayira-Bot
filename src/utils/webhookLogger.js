@@ -5,12 +5,26 @@ const config = require('../../config.json');
 class WebhookLogger {
     constructor() {
         this.webhooks = {
-            commandLog: config.webhooks.commandLog ? new WebhookClient({ url: config.webhooks.commandLog }) : null,
-            premiumLog: config.webhooks.premiumLog ? new WebhookClient({ url: config.webhooks.premiumLog }) : null,
-            blacklistLog: config.webhooks.blacklistLog ? new WebhookClient({ url: config.webhooks.blacklistLog }) : null,
-            noPrefixLog: config.webhooks.noPrefixLog ? new WebhookClient({ url: config.webhooks.noPrefixLog }) : null,
-            errorLog: config.webhooks.errorLog ? new WebhookClient({ url: config.webhooks.errorLog }) : null,
+            commandLog: this.createWebhook(config.webhooks?.commandLog),
+            premiumLog: this.createWebhook(config.webhooks?.premiumLog),
+            blacklistLog: this.createWebhook(config.webhooks?.blacklistLog),
+            noPrefixLog: this.createWebhook(config.webhooks?.noPrefixLog),
+            errorLog: this.createWebhook(config.webhooks?.errorLog),
+            botStatusLog: this.createWebhook(config.webhooks?.botStatusLog),
         };
+    }
+
+    createWebhook(url) {
+        if (!url || typeof url !== 'string') return null;
+        if (!url.startsWith('https://discord.com/api/webhooks/') && !url.startsWith('https://discordapp.com/api/webhooks/')) {
+            return null;
+        }
+        try {
+            return new WebhookClient({ url: url });
+        } catch (error) {
+            console.error(`Failed to create webhook client: ${error.message}`);
+            return null;
+        }
     }
 
     async logCommand(data) {
@@ -148,6 +162,85 @@ class WebhookLogger {
             await this.webhooks.errorLog.send({ embeds: [embed] });
         } catch (error) {
             console.error('Failed to send error log webhook:', error.message);
+        }
+    }
+
+    async logBotStart(data) {
+        if (!this.webhooks.botStatusLog) return;
+
+        const embed = new EmbedBuilder()
+            .setTitle('✅ Bot Started')
+            .setColor('#2ecc71')
+            .addFields(
+                { name: '🤖 Bot', value: `${data.botTag} (\`${data.botId}\`)`, inline: true },
+                { name: '🏠 Servers', value: `${data.servers}`, inline: true },
+                { name: '👥 Users', value: `${data.users}`, inline: true },
+                { name: '⚙️ Commands', value: `${data.commands}`, inline: true },
+                { name: '🎵 Prefix', value: `\`${data.prefix}\``, inline: true }
+            )
+            .setTimestamp();
+
+        try {
+            await this.webhooks.botStatusLog.send({ embeds: [embed] });
+        } catch (error) {
+            console.error('Failed to send bot start log webhook:', error.message);
+        }
+    }
+
+    async logLavalinkConnect(data) {
+        if (!this.webhooks.botStatusLog) return;
+
+        const embed = new EmbedBuilder()
+            .setTitle('🎵 Lavalink Connected')
+            .setColor('#3498db')
+            .addFields(
+                { name: '📡 Node', value: data.nodeName, inline: true },
+                { name: '🌐 Host', value: `${data.host}:${data.port}`, inline: true }
+            )
+            .setTimestamp();
+
+        try {
+            await this.webhooks.botStatusLog.send({ embeds: [embed] });
+        } catch (error) {
+            console.error('Failed to send lavalink connect log webhook:', error.message);
+        }
+    }
+
+    async logLavalinkDisconnect(data) {
+        if (!this.webhooks.botStatusLog) return;
+
+        const embed = new EmbedBuilder()
+            .setTitle('⚠️ Lavalink Disconnected')
+            .setColor('#e67e22')
+            .addFields(
+                { name: '📡 Node', value: data.nodeName, inline: true },
+                { name: '📝 Reason', value: data.reason || 'Unknown', inline: true }
+            )
+            .setTimestamp();
+
+        try {
+            await this.webhooks.botStatusLog.send({ embeds: [embed] });
+        } catch (error) {
+            console.error('Failed to send lavalink disconnect log webhook:', error.message);
+        }
+    }
+
+    async logBotShutdown(data) {
+        if (!this.webhooks.botStatusLog) return;
+
+        const embed = new EmbedBuilder()
+            .setTitle('🔴 Bot Going Offline')
+            .setColor('#e74c3c')
+            .addFields(
+                { name: '🤖 Bot', value: data.botTag || 'Unknown', inline: true },
+                { name: '📝 Reason', value: data.reason || 'Shutdown', inline: true }
+            )
+            .setTimestamp();
+
+        try {
+            await this.webhooks.botStatusLog.send({ embeds: [embed] });
+        } catch (error) {
+            console.error('Failed to send bot shutdown log webhook:', error.message);
         }
     }
 }
