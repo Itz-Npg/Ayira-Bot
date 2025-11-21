@@ -1,0 +1,25 @@
+{
+  "name": "ayira-bot",
+  "version": "1.0.0",
+  "description": "Advanced Discord music bot with ultra-high-quality sound",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "music"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "aliana-client": "^1.0.4",
+    "axios": "^1.13.2",
+    "discord.js": "^14.19.3",
+    "dotenv": "^16.3.1",
+    "mongoose": "^8.20.0",
+    "musicard": "^2.0.5",
+    "quick.db": "^9.1.7"
+  }
+}
