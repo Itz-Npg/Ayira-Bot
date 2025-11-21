@@ -25,6 +25,13 @@ module.exports = (client) => {
         console.log('  └───────────────────────────────────────────────────────┘');
         console.log(colors.reset);
         log.success(`Node "${nodeName}" is ready at ${node.options?.host || 'unknown'}:${node.options?.port || 'unknown'}`);
+        
+        const webhookLogger = require('../utils/webhookLogger');
+        webhookLogger.logLavalinkConnect({
+            nodeName: nodeName,
+            host: node.options?.host || 'unknown',
+            port: node.options?.port || 'unknown'
+        }).catch(() => {});
     });
 
     client.lavalink.on('nodeDisconnect', (node, reason) => {
@@ -35,6 +42,12 @@ module.exports = (client) => {
         console.log('  └───────────────────────────────────────────────────────┘');
         console.log(colors.reset);
         log.warn(`Node "${nodeName}" disconnected - Reason: ${reason}`);
+        
+        const webhookLogger = require('../utils/webhookLogger');
+        webhookLogger.logLavalinkDisconnect({
+            nodeName: nodeName,
+            reason: reason || 'Unknown'
+        }).catch(() => {});
     });
 
     client.lavalink.on('nodeError', (node, error) => {
