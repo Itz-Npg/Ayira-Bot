@@ -424,9 +424,55 @@ client.on('messageCreate', async (message) => {
     } catch (error) {
         log.error(`Error in messageCreate: ${error.message}`);
         console.error(error.stack);
+        
+        const webhookLogger = require('./utils/webhookLogger');
+        webhookLogger.logError({
+            error: error,
+            context: 'Message Command Execution',
+            guildId: message.guild?.id,
+            guildName: message.guild?.name,
+            userId: message.author.id,
+            username: message.author.tag,
+            command: commandName
+        }).catch(() => {});
+        
         const embedBuilder = require('./utils/embedBuilder');
         message.reply(embedBuilder.errorEmbed('Error', 'An error occurred while processing your command.')).catch(console.error);
     }
+});
+
+// Global error handlers
+process.on('unhandledRejection', (error) => {
+    log.error(`Unhandled Promise Rejection: ${error.message}`);
+    console.error(error.stack);
+    
+    const webhookLogger = require('./utils/webhookLogger');
+    webhookLogger.logError({
+        error: error,
+        context: 'Unhandled Promise Rejection'
+    }).catch(() => {});
+});
+
+process.on('uncaughtException', (error) => {
+    log.error(`Uncaught Exception: ${error.message}`);
+    console.error(error.stack);
+    
+    const webhookLogger = require('./utils/webhookLogger');
+    webhookLogger.logError({
+        error: error,
+        context: 'Uncaught Exception'
+    }).catch(() => {});
+});
+
+client.on('error', (error) => {
+    log.error(`Discord Client Error: ${error.message}`);
+    console.error(error.stack);
+    
+    const webhookLogger = require('./utils/webhookLogger');
+    webhookLogger.logError({
+        error: error,
+        context: 'Discord Client Error'
+    }).catch(() => {});
 });
 
 client.login(process.env.DISCORD_TOKEN).catch(err => {
