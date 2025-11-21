@@ -1,6 +1,7 @@
 const User = require('../../models/User');
 const Guild = require('../../models/Guild');
 const embedBuilder = require('../../utils/embedBuilder');
+const webhookLogger = require('../../utils/webhookLogger');
 
 module.exports = {
     name: 'premium',
@@ -9,7 +10,7 @@ module.exports = {
     usage: '!premium <add/remove> <user/server> <id> [days]',
     category: 'Owner',
     owner: true,
-    
+
     async execute(message, args, client) {
         if (message.author.id !== '1052620216443601076') {
             return message.reply(embedBuilder.errorEmbed('Owner Only', 'This command is restricted to the bot owner only.'));
@@ -56,6 +57,14 @@ module.exports = {
 
                     if (user) {
                         user.send(response).catch(() => {});
+                        webhookLogger.logPremium({
+                            action: 'Activated',
+                            username: user.tag,
+                            userId: user.id,
+                            target: 'User',
+                            duration: `${days} days`,
+                            expiresAt: expiresAt
+                        }).catch(() => {});
                     }
 
                 } else {
