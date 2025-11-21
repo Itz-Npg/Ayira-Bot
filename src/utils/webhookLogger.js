@@ -9,6 +9,7 @@ class WebhookLogger {
             premiumLog: config.webhooks.premiumLog ? new WebhookClient({ url: config.webhooks.premiumLog }) : null,
             blacklistLog: config.webhooks.blacklistLog ? new WebhookClient({ url: config.webhooks.blacklistLog }) : null,
             noPrefixLog: config.webhooks.noPrefixLog ? new WebhookClient({ url: config.webhooks.noPrefixLog }) : null,
+            errorLog: config.webhooks.errorLog ? new WebhookClient({ url: config.webhooks.errorLog }) : null,
         };
     }
 
@@ -93,6 +94,60 @@ class WebhookLogger {
             await this.webhooks.noPrefixLog.send({ embeds: [embed] });
         } catch (error) {
             console.error('Failed to send no-prefix log webhook:', error.message);
+        }
+    }
+
+    async logError(data) {
+        if (!this.webhooks.errorLog) return;
+
+        const embed = new EmbedBuilder()
+            .setTitle('🚨 Error Occurred')
+            .setColor('#e74c3c')
+            .setTimestamp();
+
+        if (data.error) {
+            const errorMessage = data.error.message || String(data.error);
+            const errorStack = data.error.stack || 'No stack trace available';
+            
+            embed.addFields(
+                { name: '❌ Error Message', value: `\`\`\`${errorMessage.slice(0, 1000)}\`\`\``, inline: false }
+            );
+
+            if (errorStack.length > 0) {
+                embed.addFields(
+                    { name: '📋 Stack Trace', value: `\`\`\`${errorStack.slice(0, 1000)}\`\`\``, inline: false }
+                );
+            }
+        }
+
+        if (data.context) {
+            embed.addFields(
+                { name: '📍 Context', value: data.context, inline: false }
+            );
+        }
+
+        if (data.guildId) {
+            embed.addFields(
+                { name: '🏠 Server', value: `${data.guildName || 'Unknown'} (\`${data.guildId}\`)`, inline: true }
+            );
+        }
+
+        if (data.userId) {
+            embed.addFields(
+                { name: '👤 User', value: `${data.username || 'Unknown'} (\`${data.userId}\`)`, inline: true }
+            );
+        }
+
+        if (data.command) {
+            embed.addFields(
+                { name: '⚙️ Command', value: `\`${data.command}\``, inline: true }
+            );
+        }
+
+        try {
+            await this.webhooks.errorLog.send({ embeds: [embed] });
+        } catch (error) {
+            console.error('Failed to send error log webhook:', error.message);
         }
     }
 }
