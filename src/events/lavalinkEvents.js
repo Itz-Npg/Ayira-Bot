@@ -25,7 +25,7 @@ module.exports = (client) => {
         console.log('  └───────────────────────────────────────────────────────┘');
         console.log(colors.reset);
         log.success(`Node "${nodeName}" is ready at ${node.options?.host || 'unknown'}:${node.options?.port || 'unknown'}`);
-        
+
         const webhookLogger = require('../utils/webhookLogger');
         webhookLogger.logLavalinkConnect({
             nodeName: nodeName,
@@ -42,7 +42,7 @@ module.exports = (client) => {
         console.log('  └───────────────────────────────────────────────────────┘');
         console.log(colors.reset);
         log.warn(`Node "${nodeName}" disconnected - Reason: ${reason}`);
-        
+
         const webhookLogger = require('../utils/webhookLogger');
         webhookLogger.logLavalinkDisconnect({
             nodeName: nodeName,
@@ -58,7 +58,7 @@ module.exports = (client) => {
     client.lavalink.on('trackStart', async (player, track) => {
         const guild = client.guilds.cache.get(player.guildId);
         log.event(`Track started in ${guild?.name || player.guildId}: ${track.info.title}`);
-        
+
         try {
             const voiceStatusManager = require('../utils/voiceStatusManager');
             const voiceStatus = voiceStatusManager.getInstance();
@@ -66,36 +66,36 @@ module.exports = (client) => {
         } catch (error) {
             log.warn('VoiceStatusManager not yet initialized, skipping status update');
         }
-        
+
         const embedBuilder = require('../utils/embedBuilder');
         const sessionManager = require('../utils/musicSessionManager');
         const Guild = require('../models/Guild');
         const channel = client.channels.cache.get(player.textChannelId);
-        
+
         if (channel) {
             const requester = track.requester ? `<@${track.requester}>` : 'Unknown';
             const requesterId = track.requester;
-            
+
             // Set the session requester for this guild
             if (requesterId) {
                 sessionManager.setNowPlayingRequester(player.guildId, requesterId);
             }
-            
+
             // Get guild music preset
             let guildData = await Guild.findOne({ guildId: player.guildId });
             const musicPreset = guildData?.musicPreset || 'classic';
-            
+
             // Generate musiccard if preset is not classic
             if (musicPreset.startsWith('musicard-')) {
                 try {
                     const { musicCard } = require('musicard');
                     const { AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-                    
+
                     // Determine theme based on preset
                     let theme = 'dynamic';
                     if (musicPreset === 'musicard-classic') theme = 'classic';
                     if (musicPreset === 'musicard-custom') theme = 'custom';
-                    
+
                     // Generate music card
                     const cardBuffer = await musicCard({
                         thumbnailImage: track.info.artworkUrl || track.info.thumbnail || 'https://i.imgur.com/vHAu2Bb.png',
@@ -108,9 +108,9 @@ module.exports = (client) => {
                         startTime: 0,
                         endTime: track.info.duration || 0
                     });
-                    
+
                     const attachment = new AttachmentBuilder(cardBuffer, { name: 'music-card.png' });
-                    
+
                     // Use the same button creation as embedBuilder for consistency and security
                     const row = new ActionRowBuilder()
                         .addComponents(
@@ -139,13 +139,13 @@ module.exports = (client) => {
                                 .setEmoji('👍')
                                 .setStyle(ButtonStyle.Success)
                         );
-                    
+
                     await channel.send({ 
                         content: `🎵 **Now Playing** - Requested by ${requester}`,
                         files: [attachment],
                         components: [row]
                     });
-                    
+
                     log.success(`Music card generated with ${theme} theme for ${guild?.name || player.guildId}`);
                 } catch (error) {
                     log.error(`Music card generation failed: ${error.message}`);
@@ -163,41 +163,41 @@ module.exports = (client) => {
     client.lavalink.on('trackEnd', async (player, track, reason) => {
         const guild = client.guilds.cache.get(player.guildId);
         log.event(`Track ended in ${guild?.name || player.guildId}: ${track.info.title} (${reason})`);
-        
+
         if (player.queue.size === 0 && !player.autoPlay) {
             try {
                 const voiceStatusManager = require('../utils/voiceStatusManager');
                 const voiceStatus = voiceStatusManager.getInstance();
-                voiceStatus.setIdleStatus(player.voiceChannelId).catch(() => {});
+                await voiceStatus.setIdleStatus(player.voiceChannelId);
             } catch (error) {
-                log.warn('VoiceStatusManager not yet initialized, skipping status update');
+                // Silently skip if VoiceStatusManager not initialized yet
             }
         }
-        
+
         // If autoplay is enabled and track was manually skipped with empty queue, trigger autoplay
         if (player.autoPlay && reason === 'stopped' && player.queue.size === 0) {
             log.event(`Triggering autoplay after manual skip in ${guild?.name || player.guildId}`);
-            
+
             try {
                 // Get the track to base autoplay on
                 const trackForAutoplay = player.lastPlayedTrack || track;
-                
+
                 // Search for related tracks using the same logic as package
                 const searchQuery = `${trackForAutoplay.info.author} popular songs`;
                 const result = await client.lavalink.search(searchQuery, track.requester);
-                
+
                 if (result.loadType === 'search' && Array.isArray(result.data) && result.data.length > 0) {
                     // Filter out the current track and pick a random one
                     const relatedTracks = result.data.filter(t => 
                         t.info.identifier !== trackForAutoplay.info.identifier &&
                         t.info.identifier !== track.info.identifier
                     );
-                    
+
                     if (relatedTracks.length > 0) {
                         const randomTrack = relatedTracks[Math.floor(Math.random() * relatedTracks.length)];
                         await player.queue.add(randomTrack);
                         await player.skip();
-                        
+
                         // Manually emit the autoPlayTrack event
                         client.lavalink.emit('autoPlayTrack', player, randomTrack);
                         return; // Don't show "Track Ended" message
@@ -207,18 +207,18 @@ module.exports = (client) => {
                 log.error(`Autoplay after skip failed: ${error.message}`);
             }
         }
-        
+
         // Don't send ended message if autoplay is enabled and track finished naturally
         // This prevents the "Track Ended" message from interrupting autoplay
         if (player.autoPlay && reason === 'finished') {
             return;
         }
-        
+
         // Don't send ended message if autoplay is enabled and track was stopped (skip triggered autoplay above)
         if (player.autoPlay && reason === 'stopped') {
             return;
         }
-        
+
         // Only send ended message for stopped, replaced, or finished tracks (when autoplay is off)
         if (reason === 'stopped' || reason === 'replaced' || reason === 'finished') {
             const embedBuilder = require('../utils/embedBuilder');
@@ -232,7 +232,7 @@ module.exports = (client) => {
                 } else if (reason === 'finished') {
                     endMessage = `Track finished: **${track.info.title}**`;
                 }
-                
+
                 channel.send(embedBuilder.infoEmbed('Track Ended', endMessage)).catch(() => {});
             }
         }
@@ -241,20 +241,20 @@ module.exports = (client) => {
     client.lavalink.on('queueEnd', async (player) => {
         const guild = client.guilds.cache.get(player.guildId);
         log.event(`Queue ended in ${guild?.name || player.guildId} | AutoPlay: ${player.autoPlay}`);
-        
+
         try {
             const voiceStatusManager = require('../utils/voiceStatusManager');
             const voiceStatus = voiceStatusManager.getInstance();
-            voiceStatus.setIdleStatus(player.voiceChannelId).catch(() => {});
+            await voiceStatus.setIdleStatus(player.voiceChannelId);
         } catch (error) {
-            log.warn('VoiceStatusManager not yet initialized, skipping status update');
+            // Silently skip if VoiceStatusManager not initialized yet
         }
-        
+
         const Guild = require('../models/Guild');
         const guildData = await Guild.findOne({ guildId: player.guildId });
-        
+
         const channel = client.channels.cache.get(player.textChannelId);
-        
+
         if (guildData && guildData['247'].enabled) {
             if (channel && !player.autoPlay) {
                 const embedBuilder = require('../utils/embedBuilder');
@@ -272,7 +272,7 @@ module.exports = (client) => {
     client.lavalink.on('trackError', (player, track, error) => {
         const guild = client.guilds.cache.get(player.guildId);
         log.error(`Track error in ${guild?.name || player.guildId}: ${track.info.title} - ${error.message}`);
-        
+
         const embedBuilder = require('../utils/embedBuilder');
         const channel = client.channels.cache.get(player.textChannelId);
         if (channel) {
@@ -283,7 +283,7 @@ module.exports = (client) => {
     client.lavalink.on('autoPlayTrack', (player, track) => {
         const guild = client.guilds.cache.get(player.guildId);
         log.event(`Autoplay in ${guild?.name || player.guildId}: ${track.info.title}`);
-        
+
         const embedBuilder = require('../utils/embedBuilder');
         const channel = client.channels.cache.get(player.textChannelId);
         if (channel) {
@@ -295,13 +295,13 @@ module.exports = (client) => {
                 SeparatorBuilder,
                 MessageFlags
             } = require('discord.js');
-            
+
             const container = new ContainerBuilder();
             const header = new TextDisplayBuilder()
                 .setContent('## 🎵 AutoPlay');
             container.addTextDisplayComponents(header);
             container.addSeparatorComponents(new SeparatorBuilder());
-            
+
             const requester = track.requester ? `<@${track.requester}>` : 'Unknown';
             const formatDuration = (ms) => {
                 if (!ms || ms === 0) return '00:00';
@@ -314,14 +314,14 @@ module.exports = (client) => {
                 }
                 return `${minutes}:${String(secs).padStart(2, '0')}`;
             };
-            
+
             const duration = track.info.duration ?? track.info.length ?? 0;
             const trackInfo = new TextDisplayBuilder()
                 .setContent(`• [${track.info.title}](${track.info.uri})\n• ${track.info.author}\n• Duration: **${formatDuration(duration)}**`);
-            
+
             const section = new SectionBuilder()
                 .addTextDisplayComponents(trackInfo);
-            
+
             const artworkUrl = track.info.artworkUrl || track.info.thumbnail;
             if (artworkUrl) {
                 const thumbnail = new ThumbnailBuilder({ 
@@ -329,9 +329,9 @@ module.exports = (client) => {
                 });
                 section.setThumbnailAccessory(thumbnail);
             }
-            
+
             container.addSectionComponents(section);
-            
+
             channel.send({ 
                 components: [container], 
                 flags: MessageFlags.IsComponentsV2 
@@ -342,10 +342,10 @@ module.exports = (client) => {
     client.lavalink.on('playerDestroy', async (player, reason) => {
         const guild = client.guilds.cache.get(player.guildId);
         log.event(`Player destroyed in ${guild?.name || player.guildId} - Reason: ${reason}`);
-        
+
         const Guild = require('../models/Guild');
         const guildData = await Guild.findOne({ guildId: player.guildId });
-        
+
         try {
             const voiceStatusManager = require('../utils/voiceStatusManager');
             const voiceStatus = voiceStatusManager.getInstance();
@@ -357,22 +357,22 @@ module.exports = (client) => {
         } catch (error) {
             log.warn('VoiceStatusManager not yet initialized, skipping status update');
         }
-        
+
         // Clear session data when player is destroyed
         const sessionManager = require('../utils/musicSessionManager');
         sessionManager.clearGuildSession(player.guildId);
     });
 
-    client.lavalink.on('playerCreate', (player) => {
+    client.lavalink.on('playerCreate', async (player) => {
         const guild = client.guilds.cache.get(player.guildId);
         log.event(`Player created in ${guild?.name || player.guildId}`);
-        
+
         try {
             const voiceStatusManager = require('../utils/voiceStatusManager');
             const voiceStatus = voiceStatusManager.getInstance();
-            voiceStatus.setIdleStatus(player.voiceChannelId).catch(() => {});
+            await voiceStatus.setIdleStatus(player.voiceChannelId);
         } catch (error) {
-            log.warn('VoiceStatusManager not yet initialized, skipping status update');
+            // Silently skip if VoiceStatusManager not initialized yet
         }
     });
 
