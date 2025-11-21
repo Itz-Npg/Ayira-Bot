@@ -17,6 +17,8 @@ const log = {
 };
 
 module.exports = (client) => {
+    const voiceStatusManager = require('../utils/voiceStatusManager');
+
     client.lavalink.on('nodeConnect', (node) => {
         const nodeName = node.options?.id || node.options?.identifier || 'Unknown';
         console.log('\n' + colors.green);
@@ -58,6 +60,9 @@ module.exports = (client) => {
     client.lavalink.on('trackStart', async (player, track) => {
         const guild = client.guilds.cache.get(player.guildId);
         log.event(`Track started in ${guild?.name || player.guildId}: ${track.info.title}`);
+        
+        const voiceStatus = voiceStatusManager.getInstance();
+        voiceStatus.setNowPlayingStatus(player.voiceChannelId, track.info.title, track.info.author).catch(() => {});
         
         const embedBuilder = require('../utils/embedBuilder');
         const sessionManager = require('../utils/musicSessionManager');
@@ -156,6 +161,11 @@ module.exports = (client) => {
         const guild = client.guilds.cache.get(player.guildId);
         log.event(`Track ended in ${guild?.name || player.guildId}: ${track.info.title} (${reason})`);
         
+        if (player.queue.size === 0 && !player.autoPlay) {
+            const voiceStatus = voiceStatusManager.getInstance();
+            voiceStatus.setIdleStatus(player.voiceChannelId).catch(() => {});
+        }
+        
         // If autoplay is enabled and track was manually skipped with empty queue, trigger autoplay
         if (player.autoPlay && reason === 'stopped' && player.queue.size === 0) {
             log.event(`Triggering autoplay after manual skip in ${guild?.name || player.guildId}`);
@@ -223,6 +233,9 @@ module.exports = (client) => {
     client.lavalink.on('queueEnd', async (player) => {
         const guild = client.guilds.cache.get(player.guildId);
         log.event(`Queue ended in ${guild?.name || player.guildId} | AutoPlay: ${player.autoPlay}`);
+        
+        const voiceStatus = voiceStatusManager.getInstance();
+        voiceStatus.setIdleStatus(player.voiceChannelId).catch(() => {});
         
         const Guild = require('../models/Guild');
         const guildData = await Guild.findOne({ guildId: player.guildId });
@@ -313,9 +326,19 @@ module.exports = (client) => {
         }
     });
 
-    client.lavalink.on('playerDestroy', (player, reason) => {
+    client.lavalink.on('playerDestroy', async (player, reason) => {
         const guild = client.guilds.cache.get(player.guildId);
         log.event(`Player destroyed in ${guild?.name || player.guildId} - Reason: ${reason}`);
+        
+        const Guild = require('../models/Guild');
+        const guildData = await Guild.findOne({ guildId: player.guildId });
+        
+        const voiceStatus = voiceStatusManager.getInstance();
+        if (guildData && guildData['247'].enabled && player.voiceChannelId) {
+            voiceStatus.setIdleStatus(player.voiceChannelId).catch(() => {});
+        } else {
+            voiceStatus.clearStatus(player.voiceChannelId).catch(() => {});
+        }
         
         // Clear session data when player is destroyed
         const sessionManager = require('../utils/musicSessionManager');
@@ -325,6 +348,9 @@ module.exports = (client) => {
     client.lavalink.on('playerCreate', (player) => {
         const guild = client.guilds.cache.get(player.guildId);
         log.event(`Player created in ${guild?.name || player.guildId}`);
+        
+        const voiceStatus = voiceStatusManager.getInstance();
+        voiceStatus.setIdleStatus(player.voiceChannelId).catch(() => {});
     });
 
     log.success('Lavalink events initialized');
