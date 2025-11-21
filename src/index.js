@@ -36,9 +36,8 @@ const client = new Client({
         GatewayIntentBits.MessageContent,
     ],
     rest: {
-        retries: 5,
+        retries: 3,
         timeout: 60000,
-        rejectOnRateLimit: () => false,
     },
     sweepers: {
         messages: {
@@ -137,6 +136,10 @@ client.once('ready', async () => {
     console.log(colors.reset);
 
     client.lavalink.init(client.user.id);
+
+    const voiceStatusManager = require('./utils/voiceStatusManager');
+    voiceStatusManager.init(client);
+    log.success('Voice Status Manager initialized');
 
     const { registerSlashCommands } = require('./handlers/slashCommands');
     await registerSlashCommands(client.user.id);
