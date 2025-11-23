@@ -172,3 +172,4 @@ If you encounter issues:
 - Uses [discord.js](https://discord.js.org/)
 - Made by [Npg](https://github.com/Itz-Npg)
 - Youtube [Here](https://youtube.com/@itznpg)
+- Youtube_tutorial [Here](comming soon)
